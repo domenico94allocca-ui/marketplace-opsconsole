@@ -16,6 +16,7 @@ datasource db {
 model AdminUser {
   id            String     @id @default(cuid())
   email         String     @unique
+  passwordHash  String?    // bcrypt; null = utente non abilitato al login email/password
   totpSecret    String?    // base32, cifrato a riposo via SESSION_SECRET (vedi lib/auth/totp)
   totpEnabledAt DateTime?
   lastLoginAt   DateTime?
