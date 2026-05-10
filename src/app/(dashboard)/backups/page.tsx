@@ -7,21 +7,33 @@ import path from "node:path";
 
 export const dynamic = "force-dynamic";
 
-type Backup = { name: string; size: number; mtime: Date; path: string };
+type Backup = { name: string; bucket: string; size: number; mtime: Date; path: string };
+
+const BACKUP_EXT_RE = /\.(sql\.gz|sql|tar\.gz|tgz|tar|dump|zip)$/i;
 
 async function listBackups(): Promise<Backup[] | null> {
   const dir = process.env.BACKUP_DIR || "/backups";
   try {
-    const entries = await fs.readdir(dir);
+    const entries = await fs.readdir(dir, { recursive: true, withFileTypes: true });
     const out: Backup[] = [];
     for (const e of entries) {
-      const p = path.join(dir, e);
+      if (!e.isFile() || !BACKUP_EXT_RE.test(e.name)) continue;
+      const parent = (e as any).parentPath ?? (e as any).path ?? dir;
+      const full = path.join(parent, e.name);
       try {
-        const st = await fs.stat(p);
-        if (st.isFile()) out.push({ name: e, size: st.size, mtime: st.mtime, path: p });
+        const st = await fs.stat(full);
+        const rel = path.relative(dir, parent);
+        out.push({
+          name: e.name,
+          bucket: rel === "" ? "(root)" : rel,
+          size: st.size,
+          mtime: st.mtime,
+          path: full,
+        });
       } catch {}
     }
-    return out.sort((a, b) => b.mtime.getTime() - a.mtime.getTime());
+    out.sort((a, b) => b.mtime.getTime() - a.mtime.getTime());
+    return out.slice(0, 100);
   } catch { return null; }
 }
 
@@ -53,17 +65,19 @@ export default async function BackupsPage() {
         <div className="card">
           <table className="w-full text-sm">
             <thead className="text-neutral-500 text-left">
-              <tr><th className="py-2">File</th><th>Dimensione</th><th>Data</th></tr>
+              <tr><th className="py-2">Categoria</th><th>File</th><th>Dimensione</th><th>Data</th></tr>
             </thead>
             <tbody>
               {(backups ?? []).map((b) => (
                 <tr key={b.path} className="border-t border-neutral-800">
-                  <td className="py-2 font-mono text-xs">{b.name}</td>
+                  <td className="py-2 text-neutral-400">{b.bucket}</td>
+                  <td className="font-mono text-xs">{b.name}</td>
                   <td>{formatSize(b.size)}</td>
                   <td className="text-neutral-400">{b.mtime.toLocaleString("it-IT")}</td>
                 </tr>
               ))}
-              {!backups && <tr><td colSpan={3} className="py-4 text-err">Directory backup non leggibile ({process.env.BACKUP_DIR || "/backups"})</td></tr>}
+              {!backups && <tr><td colSpan={4} className="py-4 text-err">Directory backup non leggibile ({process.env.BACKUP_DIR || "/backups"})</td></tr>}
+              {backups && backups.length === 0 && <tr><td colSpan={4} className="py-4 text-neutral-500">Nessun file di backup trovato.</td></tr>}
             </tbody>
           </table>
         </div>
