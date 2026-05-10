@@ -1,66 +1,41 @@
-#!/usr/bin/env bash
+#!/bin/bash
 # =====================================================================
-# OpsConsole - Local deploy (Mac → Hetzner)
-# Replica il pattern di marketplace/scripts/local-deploy.sh:
-#   1. typecheck + build locale
-#   2. commit + push su main
-#   3. ssh server: git pull + docker compose up --build -d
-#   4. health-check post-deploy
-#   5. rollback automatico se health-check fallisce
+# OPSCONSOLE - Deploy dal Mac (stesso pattern del marketplace)
 # =====================================================================
+# Uso:  ./scripts/local-deploy.sh
+# Cosa fa:
+#   1. Verifica branch main + working tree pulito
+#   2. Push su GitHub
+#   3. SSH al server, git pull + docker compose up --build -d + prisma migrate deploy
+# =====================================================================
+
 set -euo pipefail
 
-SERVER_USER="${OPS_SERVER_USER:-deploy}"
-SERVER_HOST="${OPS_SERVER_HOST:-CHANGE_ME.bacolionlife.it}"
-REMOTE_DIR="${OPS_REMOTE_DIR:-/opt/opsconsole}"
-HEALTH_URL="${OPS_HEALTH_URL:-https://ops.bacolionlife.it/api/health}"
+SERVER_USER="root"
+SERVER_IP="204.168.168.140"
+SERVER_DIR="/opt/opsconsole"
 
-step() { printf "\n\033[1;36m▶ %s\033[0m\n" "$*"; }
-fail() { printf "\033[1;31m✗ %s\033[0m\n" "$*"; exit 1; }
+GREEN='\033[0;32m'; RED='\033[0;31m'; YELLOW='\033[1;33m'; NC='\033[0m'
+log()   { echo -e "${GREEN}[LOCAL]${NC} $1"; }
+error() { echo -e "${RED}[ERRORE]${NC} $1"; }
+warn()  { echo -e "${YELLOW}[AVVISO]${NC} $1"; }
 
-step "Pre-check: branch e working tree"
-git rev-parse --is-inside-work-tree >/dev/null || fail "Non sei in un repo git"
-[ "$(git rev-parse --abbrev-ref HEAD)" = "main" ] || fail "Devi essere su main"
-
-step "Lint + typecheck + build locali"
-npm run typecheck
-npm run build
-
-step "Commit & push (se ci sono modifiche)"
-if [ -n "$(git status --porcelain)" ]; then
-  git add -A
-  git commit -m "deploy: $(date +%Y-%m-%d_%H:%M)"
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
+if [ "$BRANCH" != "main" ]; then
+  error "Sei sul branch '$BRANCH'. Passa a 'main' prima del deploy."
+  exit 1
 fi
+
+if [ -n "$(git status --porcelain)" ]; then
+  error "Hai modifiche non committate:"
+  git status --short
+  exit 1
+fi
+
+log "Push su GitHub..."
 git push origin main
 
-PREV_SHA=$(ssh "$SERVER_USER@$SERVER_HOST" "cd $REMOTE_DIR && git rev-parse HEAD")
-step "SHA precedente: $PREV_SHA"
+log "Deploy remoto..."
+ssh "$SERVER_USER@$SERVER_IP" "cd $SERVER_DIR && git fetch origin main && git checkout origin/main -- scripts/deploy.sh 2>/dev/null; bash scripts/deploy.sh"
 
-step "Deploy remoto"
-ssh "$SERVER_USER@$SERVER_HOST" "
-  set -e
-  cd $REMOTE_DIR
-  git fetch origin main
-  git reset --hard origin/main
-  docker compose -f docker-compose.server.yml up --build -d
-  docker compose -f docker-compose.server.yml exec -T opsconsole-web npx prisma migrate deploy
-"
-
-step "Health-check"
-sleep 5
-for i in 1 2 3 4 5; do
-  if curl -fsS "$HEALTH_URL" >/dev/null; then
-    printf "\033[1;32m✓ Deploy OK\033[0m\n"
-    exit 0
-  fi
-  sleep 5
-done
-
-step "Rollback a $PREV_SHA"
-ssh "$SERVER_USER@$SERVER_HOST" "
-  set -e
-  cd $REMOTE_DIR
-  git reset --hard $PREV_SHA
-  docker compose -f docker-compose.server.yml up --build -d
-"
-fail "Health-check fallito → rollback eseguito"
+log "Deploy OK. Verifica su https://ops.bacolionlife.it"
