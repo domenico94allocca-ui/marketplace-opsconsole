@@ -1,0 +1,24 @@
+# =====================================================================
+# OPSCONSOLE - Docker Compose DEV (locale Mac)
+# Avvio: docker compose up -d
+# =====================================================================
+
+services:
+  opsconsole-postgres-dev:
+    image: postgres:16-alpine
+    container_name: opsconsole-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: opsconsole
+      POSTGRES_USER: opsconsole
+      POSTGRES_PASSWORD: opsconsole
+    ports:
+      - "5532:5432"
+    volumes:
+      - opsconsole_pg_dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U opsconsole"]
+      interval: 5s
+
+volumes:
+  opsconsole_pg_dev:

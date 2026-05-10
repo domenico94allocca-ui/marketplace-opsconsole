@@ -1,0 +1,106 @@
+// =====================================================================
+// OpsConsole - Schema DB privato
+// Solo audit, sessioni, cache stato, inventario osservato.
+// NON contiene dati del marketplace.
+// =====================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("OPSCONSOLE_DB_URL")
+}
+
+model AdminUser {
+  id            String     @id @default(cuid())
+  email         String     @unique
+  totpSecret    String?    // base32, cifrato a riposo via SESSION_SECRET (vedi lib/auth/totp)
+  totpEnabledAt DateTime?
+  lastLoginAt   DateTime?
+  createdAt     DateTime   @default(now())
+  sessions      Session[]
+  magicLinks    MagicLink[]
+}
+
+model MagicLink {
+  id          String    @id @default(cuid())
+  adminUserId String
+  tokenHash   String    @unique // SHA-256 del token in chiaro
+  ip          String?
+  userAgent   String?
+  expiresAt   DateTime
+  consumedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  user        AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+}
+
+model Session {
+  id          String    @id @default(cuid())
+  adminUserId String
+  tokenHash   String    @unique
+  ip          String?
+  userAgent   String?
+  totpVerified Boolean  @default(false)
+  expiresAt   DateTime
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  user        AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actor     String   // email o "system"
+  action    String   // es. "login.magic.request", "view.containers", "view.db.tables"
+  target    String?  // es. nome container, tabella, repo
+  payload   Json?
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([actor])
+  @@index([action])
+}
+
+model HealthSample {
+  id         String   @id @default(cuid())
+  target     String   // "marketplace.health", "marketplace.tls", "host.disk", ...
+  status     String   // "ok" | "warn" | "err"
+  latencyMs  Int?
+  payload    Json?
+  capturedAt DateTime @default(now())
+
+  @@index([target, capturedAt])
+}
+
+model BackupSnapshot {
+  id              String    @id @default(cuid())
+  source          String    // es. "marketplace-postgres"
+  path            String
+  sizeBytes       BigInt
+  sha256          String?
+  takenAt         DateTime
+  retentionUntil  DateTime?
+  observedAt      DateTime  @default(now())
+
+  @@unique([source, path])
+  @@index([takenAt])
+}
+
+model ReleaseRecord {
+  id            String   @id @default(cuid())
+  tag           String   @unique
+  commitSha     String
+  deployedAt    DateTime?
+  notes         String?
+  deployerLogin String?
+  observedAt    DateTime @default(now())
+
+  @@index([deployedAt])
+}

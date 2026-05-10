@@ -1,0 +1,96 @@
+# =====================================================================
+# OPSCONSOLE - Docker Compose Server (produzione su Hetzner)
+# Usa la rete `marketplace-net` esterna condivisa con NPM e marketplace.
+# Avvio: docker compose -f docker-compose.server.yml up -d
+# =====================================================================
+
+networks:
+  marketplace-net:
+    external: true
+
+services:
+  opsconsole-postgres:
+    image: postgres:16-alpine
+    container_name: opsconsole-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: opsconsole
+      POSTGRES_USER: opsconsole
+      POSTGRES_PASSWORD: ${OPSCONSOLE_DB_PASSWORD}
+    volumes:
+      - opsconsole_pg_data:/var/lib/postgresql/data
+    networks:
+      - marketplace-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U opsconsole"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  opsconsole-socketproxy:
+    image: tecnativa/docker-socket-proxy:0.3.0
+    container_name: opsconsole-socketproxy
+    restart: unless-stopped
+    environment:
+      # Solo lettura. Nessun POST/DELETE.
+      CONTAINERS: 1
+      IMAGES: 1
+      INFO: 1
+      NETWORKS: 1
+      VOLUMES: 1
+      VERSION: 1
+      EVENTS: 1
+      PING: 1
+      POST: 0
+      DELETE: 0
+      EXEC: 0
+      ALLOW_START: 0
+      ALLOW_STOP: 0
+      ALLOW_RESTARTS: 0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - marketplace-net
+
+  opsconsole-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: opsconsole-web
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      OPS_DOMAIN: ${OPS_DOMAIN}
+      ADMIN_EMAIL: ${ADMIN_EMAIL}
+      SESSION_SECRET: ${SESSION_SECRET}
+      TOTP_ISSUER: ${TOTP_ISSUER}
+      MAGIC_LINK_TTL_MIN: ${MAGIC_LINK_TTL_MIN:-10}
+      SESSION_TTL_DAYS: ${SESSION_TTL_DAYS:-7}
+      RESEND_API_KEY: ${RESEND_API_KEY}
+      EMAIL_FROM: ${EMAIL_FROM}
+      OPSCONSOLE_DB_URL: postgresql://opsconsole:${OPSCONSOLE_DB_PASSWORD}@opsconsole-postgres:5432/opsconsole
+      MARKETPLACE_DB_URL_RO: ${MARKETPLACE_DB_URL_RO}
+      DOCKER_SOCKET_PROXY_HOST: opsconsole-socketproxy
+      DOCKER_SOCKET_PROXY_PORT: 2375
+      GITHUB_TOKEN: ${GITHUB_TOKEN}
+      GITHUB_OWNER: ${GITHUB_OWNER}
+      GITHUB_REPO: ${GITHUB_REPO}
+      MARKETPLACE_HEALTH_URL: ${MARKETPLACE_HEALTH_URL}
+      MARKETPLACE_DOMAIN: ${MARKETPLACE_DOMAIN}
+      BACKUP_DIR: /backups
+      BACKUP_FRESHNESS_HOURS: ${BACKUP_FRESHNESS_HOURS:-26}
+      PORT: 3100
+    volumes:
+      # Inventario backup applicativi marketplace, sola lettura
+      - ${HOST_BACKUP_DIR:-/opt/backups}:/backups:ro
+    networks:
+      - marketplace-net
+    depends_on:
+      opsconsole-postgres:
+        condition: service_healthy
+      opsconsole-socketproxy:
+        condition: service_started
+
+volumes:
+  opsconsole_pg_data:
+    driver: local
