@@ -83,6 +83,8 @@ services:
     volumes:
       # Inventario backup applicativi marketplace, sola lettura
       - ${HOST_BACKUP_DIR:-/opt/backups}:/backups:ro
+      # Repo del marketplace (read-only) per leggere version live + git HEAD
+      - /opt/marketplace:/marketplace:ro
     networks:
       - marketplace-net
     depends_on:
