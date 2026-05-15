@@ -23,8 +23,8 @@ git reset --hard origin/main
 log "Build + up (docker compose server)"
 docker compose -f docker-compose.server.yml up --build -d --remove-orphans
 
-log "Prisma migrate deploy"
-docker compose -f docker-compose.server.yml exec -T opsconsole-web npx prisma migrate deploy
+log "Prisma migrate deploy (versione pinned 5.22.0 per evitare breaking change v7)"
+docker compose -f docker-compose.server.yml exec -T opsconsole-web npx -y prisma@5.22.0 migrate deploy
 
 log "Health-check (max 30s)"
 for i in 1 2 3 4 5 6; do
