@@ -7,7 +7,7 @@ import path from "node:path";
 
 export const dynamic = "force-dynamic";
 
-type Backup = { name: string; bucket: string; size: number; mtime: Date; path: string };
+type Backup = { name: string; bucket: string; size: number; mtime: Date; path: string; relPath: string };
 
 const BACKUP_EXT_RE = /\.(sql\.gz|sql|tar\.gz|tgz|tar|dump|zip)$/i;
 
@@ -29,6 +29,7 @@ async function listBackups(): Promise<Backup[] | null> {
           size: st.size,
           mtime: st.mtime,
           path: full,
+          relPath: path.relative(dir, full),
         });
       } catch {}
     }
@@ -160,7 +161,7 @@ export default async function BackupsPage() {
           <div className="text-sm text-neutral-500 mb-3">Ultimi {visible.length} file</div>
           <table className="w-full text-sm">
             <thead className="text-neutral-500 text-left">
-              <tr><th className="py-2">Categoria</th><th>File</th><th>Dimensione</th><th>Data</th></tr>
+              <tr><th className="py-2">Categoria</th><th>File</th><th>Dimensione</th><th>Data</th><th></th></tr>
             </thead>
             <tbody>
               {visible.map((b) => (
@@ -169,10 +170,19 @@ export default async function BackupsPage() {
                   <td className="font-mono text-xs">{b.name}</td>
                   <td>{formatSize(b.size)}</td>
                   <td className="text-neutral-400">{b.mtime.toLocaleString("it-IT")}</td>
+                  <td className="text-right">
+                    <a
+                      className="text-brand-light hover:underline text-xs"
+                      href={`/api/backups/download?path=${encodeURIComponent(b.relPath)}`}
+                      title={`Scarica ${b.name}`}
+                    >
+                      ↓ Scarica
+                    </a>
+                  </td>
                 </tr>
               ))}
-              {!all && <tr><td colSpan={4} className="py-4 text-err">Directory backup non leggibile ({process.env.BACKUP_DIR || "/backups"})</td></tr>}
-              {all && visible.length === 0 && <tr><td colSpan={4} className="py-4 text-neutral-500">Nessun file di backup trovato.</td></tr>}
+              {!all && <tr><td colSpan={5} className="py-4 text-err">Directory backup non leggibile ({process.env.BACKUP_DIR || "/backups"})</td></tr>}
+              {all && visible.length === 0 && <tr><td colSpan={5} className="py-4 text-neutral-500">Nessun file di backup trovato.</td></tr>}
             </tbody>
           </table>
         </div>
