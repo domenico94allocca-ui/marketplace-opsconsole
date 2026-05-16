@@ -9,6 +9,8 @@ export function middleware(req: NextRequest) {
     pathname.startsWith("/database") ||
     pathname.startsWith("/releases") ||
     pathname.startsWith("/backups") ||
+    pathname.startsWith("/project") ||
+    pathname.startsWith("/work") ||
     pathname === "/";
   const cookie = req.cookies.get("ops_session");
   if (isPrivate && !cookie) {
@@ -20,5 +22,5 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/", "/infra/:path*", "/database/:path*", "/releases/:path*", "/backups/:path*"],
+  matcher: ["/", "/infra/:path*", "/database/:path*", "/releases/:path*", "/backups/:path*", "/project/:path*", "/work/:path*"],
 };

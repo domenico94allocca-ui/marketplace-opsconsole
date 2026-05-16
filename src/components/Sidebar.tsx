@@ -3,10 +3,12 @@ import Link from "next/link";
 export function Sidebar({ email }: { email: string }) {
   const items = [
     { href: "/", label: "Dashboard" },
+    { href: "/project", label: "Progetto" },
     { href: "/infra", label: "Infrastruttura" },
     { href: "/database", label: "Database" },
     { href: "/releases", label: "Codice & Release" },
     { href: "/backups", label: "Backup & Log" },
+    { href: "/work", label: "Roadmap & Docs" },
   ];
   return (
     <aside className="w-64 bg-neutral-900 border-r border-neutral-800 p-5 flex flex-col">

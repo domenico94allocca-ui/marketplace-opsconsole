@@ -77,8 +77,10 @@ export default async function DbPage() {
               {(tables ?? []).map((t) => (
                 <tr key={`${t.schema}.${t.name}`} className="border-t border-neutral-800">
                   <td className="py-2">
-                    <span className="text-neutral-500 text-xs">{t.schema}.</span>
-                    <span className="font-medium">{t.name}</span>
+                    <a href={`/database/${t.schema}/${encodeURIComponent(t.name)}`} className="hover:text-brand-light">
+                      <span className="text-neutral-500 text-xs">{t.schema}.</span>
+                      <span className="font-medium">{t.name}</span>
+                    </a>
                   </td>
                   <td className="text-right tabular-nums">{t.rows.toLocaleString("it-IT")}</td>
                   <td className="text-right tabular-nums text-neutral-300">{t.sizePretty}</td>
